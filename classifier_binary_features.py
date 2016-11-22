@@ -15,7 +15,8 @@ gi = GeoIP.open("/usr/share/GeoIP/GeoLiteCity.dat", GeoIP.GEOIP_STANDARD)
 gi_asn = GeoIP.open("/usr/share/GeoIP/GeoIPASNum.dat", GeoIP.GEOIP_STANDARD)
 
 print("Reading data from csv...")
-df = pd.read_csv("dataset/dns_scan.csv", )
+df = pd.read_csv("dataset/dns_scan.csv", ) # inserire la scansione da cui prendere i dati, su github non ci sta per
+# questioni di memoria
 ip_addresses = df.saddr
 print("...Done")
 
