@@ -128,4 +128,33 @@ print("Training finished")
 print("Starting the test...")
 print("Score on test set: {0}\n".format(rfc.score(H, I)))
 
+print("Measuring other metrics...")
+TP = 0
+FP = 0
+TN = 0
+FN = 0
+
+result = rfc.predict(H)
+
+for i in range(n_row_test*2):
+    if I[i] == result[i] == 0:
+        TP += 1
+    if result[i] == 0 and result[i] != I[i]:
+        FP += 1
+    if I[i] == result[i] == 1:
+        TN += 1
+    if result[i] == 1 and result[i] != I[i]:
+        FN += 1
+#
+print("True positive: " + str(TP))
+print("False positive: " + str(FP))
+print("True negative = " + str(TN))
+print("False negative = " + str(FN))
+
+precision = TP/(TP+FP)
+recall = TP/(TP+FN)
+print("Precision: {0}".format(precision))
+print("Recall: {0}".format(recall))
+print("F-Measure: {0}".format(2*((precision*recall)/(precision+recall))))
+
 print("--- %s seconds ---" % (time.time() - start_time))

@@ -19,7 +19,7 @@ ip_addresses = df.saddr
 print("...Done")
 
 n_col = 2
-n_row = 100000  # number of elements for the dataset
+n_row = 1000000  # number of elements for the dataset
 
 # ------------------------------ Training Set ------------------------------
 
@@ -35,7 +35,7 @@ for i in range(n_row):
         as_split = gio.split(' ')
         asn = int(as_split[0].replace('AS', ""))
     else:
-        asn = 0
+        asn = 68000
     X[i][0] = result
     X[i][1] = asn
 print("...Done")
@@ -50,7 +50,7 @@ for i in range(n_row):
         as_split = gio.split(' ')
         asn = int(as_split[0].replace('AS', ""))  # /65535
     else:
-        asn = random.randint(0, 65535)
+        asn = 68000  # random.randint(0, 65535)
     X[i + n_row][0] = result
     X[i + n_row][1] = asn
 print("...Done")
