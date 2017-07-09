@@ -263,12 +263,6 @@ if clf_name == "svm":
 else:
     print("Random Forest Classifier")
 
-print("Training...")
-clf.fit(X, Y)
-print("Training finished")
-print("Starting the test...")
-print("Score on test set: {0}\n".format(clf.score(H, I)))
-
 clf = train_classifier(clf, X, Y)
 
 if len(sys.argv) == 6:

@@ -39,7 +39,7 @@ def read_data(scan_file):
 
 
 def check_params(n_regulars, n_outliers, regulars_scan_length, outliers_scan_length):
-    if n_regulars <= 0 or n_regulars > regulars_scan_length or n_regulars:
+    if n_regulars <= 0 or n_regulars > regulars_scan_length:
         print("The size of n_row_regular_test must be greater than zero and minor than IP address regulars scan length")
         sys.exit(1)
 
