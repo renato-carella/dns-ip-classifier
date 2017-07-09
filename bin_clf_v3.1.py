@@ -26,105 +26,145 @@ from sklearn.utils import shuffle
 #
 ########################################################################################################################
 
-start_time = time.time()
 
-gi = GeoIP.open("/usr/share/GeoIP/GeoLiteCity.dat", GeoIP.GEOIP_STANDARD)
-gi_asn = GeoIP.open("/usr/share/GeoIP/GeoIPASNum.dat", GeoIP.GEOIP_STANDARD)
-
-print("Reading data from dns csv...")
-df = pd.read_csv(sys.argv[1], )
-dns_ip = df.saddr
-dns_ip = shuffle(dns_ip)
-print("...Done")
-
-print("Reading data from non-dns csv...")
-rf = pd.read_csv("dataset/not-dns.csv", )  # inserire la scansione da cui prendere i dati, su github non ci sta per
-not_dns_ip = rf.saddr
-not_dns_ip = shuffle(not_dns_ip)
-print("...Done")
-
-classifier = sys.argv[2]
-if classifier == "svm":
-    clf = svm.SVC()
-elif classifier == "rf":
-    clf = RandomForestClassifier(max_depth=None, n_estimators=20, max_features=None)
-else:
-    print("Classifier not valid, options are svm of rf")
-    sys.exit(1)
-
-n_col = 2
-n_row = len(not_dns_ip)
-
-# ------------------------------ Training Set ------------------------------
+def read_data(scan_file):
+    print("Reading data from csv...")
+    df = pd.read_csv(scan_file, )
+    ip_addresses = df.saddr
+    ip_addresses = shuffle(ip_addresses)
+    print("...Done")
+    return ip_addresses
 
 
-print("Generating some abnormal training data...")
+def check_params(n_regulars, n_outliers, regulars_scan_length, outliers_scan_length):
+    if n_regulars <= 0 or n_regulars > regulars_scan_length:
+        print("The size of n_regulars must be greater than zero and minor than IP address regulars scan length")
+        sys.exit(1)
 
-X_outliers_temp = np.empty(shape=[n_row, n_col])
-outliers_counter = 0
+    if n_outliers <= 0 or n_outliers > outliers_scan_length:
+        print("The size of n_outliers must be greater than zero and minor than IP address outlier scan length")
+        sys.exit(1)
 
-for i in range(n_row):
-    address = not_dns_ip[i].split(".")
+
+def set_classifier(clf_string):
+    if clf_string == "svm":
+        classifier = svm.SVC()
+    elif clf_string == "rf":
+        classifier = RandomForestClassifier(max_depth=None, n_estimators=10, max_features='auto')
+    else:
+        print("Classifier not valid, options are svm of rf")
+        sys.exit(1)
+    return classifier
+
+
+def create_data_set(n_regulars, n_outliers, regulars_ip, outliers_ip):
+    print("Generate some regular train data...")
+    regulars_temp = np.empty(shape=[n_regulars, n_col])
+    regulars_counter = 0
+
+    for i in range(n_regulars):
+        result = convert_ip(regulars_ip[i])
+        asn = retrieve_as(regulars_ip[i])
+        if asn != 0:
+            regulars_temp[regulars_counter][0] = result
+            regulars_temp[regulars_counter][1] = asn
+            regulars_counter += 1
+    print("...Done")
+
+    print("Generating some abnormal training data...")
+    outliers_temp = np.empty(shape=[n_outliers, n_col])
+    outliers_counter = 0
+
+    for i in range(n_outliers):
+        result = convert_ip(outliers_ip[i])
+        asn = retrieve_as(outliers_ip[i])
+        if asn != 0:
+            outliers_temp[outliers_counter][0] = result
+            outliers_temp[outliers_counter][1] = asn
+            outliers_counter += 1
+    print("...Done")
+
+    data_set = np.empty(shape=[regulars_counter + outliers_counter, n_col])
+    for i in range(regulars_counter):
+        data_set[i] = regulars_temp[i]
+    for i in range(outliers_counter):
+        data_set[regulars_counter + i] = outliers_temp[i]
+
+    return data_set
+
+
+def convert_ip(ip_address):
+    address = ip_address.split(".")
     result = ''.join(map(str, ["{0:08b}".format(int(x)) for x in address]))
-    gio = gi_asn.org_by_addr(not_dns_ip[i])
-    if gio is not None:
-        as_split = gio.split(' ')
-        asn = int(as_split[0].replace('AS', ""))  # /65535
-        X_outliers_temp[outliers_counter][0] = result
-        X_outliers_temp[outliers_counter][1] = asn
-        outliers_counter += 1
+    return result
 
-# print("Outliers counter: " + str(outliers_counter))
-print("...Done")
 
-X = np.empty(shape=[outliers_counter * 2, n_col])
-for i in range(outliers_counter):
-    X[i] = X_outliers_temp[i]
-
-print("Generate some regular train data...")
-regulars_counter = 0
-i = 0
-
-while regulars_counter != outliers_counter:
-    address = dns_ip[i].split(".")
-    result = ''.join(map(str, ["{0:08b}".format(int(x)) for x in address]))
-    gio = gi_asn.org_by_addr(dns_ip[i])
+def retrieve_as(ip_address):
+    gio = gi_asn.org_by_addr(ip_address)
     if gio is not None:
         as_split = gio.split(' ')
         asn = int(as_split[0].replace('AS', ""))
-        X[outliers_counter + regulars_counter][0] = result
-        X[outliers_counter + regulars_counter][1] = asn
-        regulars_counter += 1
-    i += 1
-print("...Done")
+    else:
+        asn = 0
+    return asn
 
 
-# Labels
-a = np.array([1])
-A = np.repeat(a, outliers_counter)
-b = np.array([0])
-B = np.repeat(b, regulars_counter)
-Y = np.append(A, B)
+def assign_labels(regulars, outliers):
+    a = np.array([0])
+    A = np.repeat(a, regulars)
+    b = np.array([1])
+    B = np.repeat(b, outliers)
+    labels_set = np.append(A, B)
+    return labels_set
 
-# ------------------------------ Test Set ------------------------------
 
-# Initialize the classifier
+def scale_data(data_set):
+    return preprocessing.scale(data_set)
 
-if classifier == "svm":
+
+def k_fold(splits, data_set, labels):
+    kf = KFold(n_splits=splits, shuffle=True)
+    for train, test in kf.split(X):
+        X_train, X_test, Y_train, Y_test = data_set[train], data_set[test], labels[train], labels[test]
+        print("Training...")
+        clf.fit(X_train, Y_train)
+        print("Training finished")
+        print("Starting the test...")
+        print("Score on test set: {0}\n".format(clf.score(X_test, Y_test)))
+
+
+# ------------------------------ Main ------------------------------
+
+start_time = time.time()
+
+# gi = GeoIP.open("/usr/share/GeoIP/GeoLiteCity.dat", GeoIP.GEOIP_STANDARD)
+gi_asn = GeoIP.open("/usr/share/GeoIP/GeoIPASNum.dat", GeoIP.GEOIP_STANDARD)
+
+n_col = 2
+
+dns_scan = sys.argv[1]
+dns_ip = read_data(dns_scan)
+
+not_dns_scan = sys.argv[2]
+not_dns_ip = read_data(not_dns_scan)
+
+n_row_regulars = int(sys.argv[3])
+n_row_outliers = int(sys.argv[4])
+check_params(n_row_regulars, n_row_outliers, len(dns_ip), len(not_dns_ip))
+
+clf_name = sys.argv[5]
+clf = set_classifier(clf_name)
+
+X = create_data_set(n_row_regulars, n_row_outliers, dns_ip, not_dns_ip)
+Y = assign_labels(n_row_regulars, n_row_outliers)
+
+if clf_name == "svm":
     print("Support Vector Machine")
-    X = preprocessing.scale(X)
-    H = preprocessing.scale(H)
+    X = scale_data(X)
 else:
     print("Random Forest Classifier")
 
-kf = KFold(n_splits=4, shuffle=True)
-for train, test in kf.split(X):
-    X_train, X_test, Y_train, Y_test = X[train], X[test], Y[train], Y[test]
-    print("Training...")
-    clf.fit(X_train, Y_train)
-    print("Training finished")
-    print("Starting the test...")
-    print("Score on test set: {0}\n".format(clf.score(X_test, Y_test)))
+k_fold(4, X, Y)
 
 
 print("--- %s seconds ---" % (time.time() - start_time))
