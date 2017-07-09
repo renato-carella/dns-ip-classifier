@@ -241,7 +241,6 @@ n_col = 2
 scan_file_name = sys.argv[1]
 scan_ip_addresses = read_data(scan_file_name)
 
-n_row_train = int(sys.argv[2])  # int(len(ip_addresses) / 2)
 n_row_train = int(sys.argv[2])
 n_row_regulars_test = int(sys.argv[3])
 n_row_outliers_test = int(sys.argv[4])
